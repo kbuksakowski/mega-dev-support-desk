@@ -1,0 +1,61 @@
+---
+layout: runbook
+title: '#4471 · what the merged reports show'
+owner: Kamil Buksakowski
+status: proposed
+reviewed: 2026-10-28
+signature: Kamil Buksakowski
+tickets:
+  parser: https://github.com/kbuksakowski/mega-dev-support-desk/issues/1
+  hint: https://github.com/kbuksakowski/mega-dev-support-desk/issues/2
+  one-day: https://github.com/kbuksakowski/mega-dev-support-desk/issues/3
+---
+
+<script>
+  import ProblemSplit from '#lib/kb/ProblemSplit.svelte';
+  import CauseTable from '#lib/kb/CauseTable.svelte';
+  import Callout from '#lib/kb/Callout.svelte';
+  import RenderStamp from '#lib/kb/RenderStamp.svelte';
+</script>
+
+[#4471](/kb/incidents/4471) says one bug, one fix queued. The reports merged into it say otherwise:
+they hold more than one problem, and the queued parser fix closes only one of them.
+
+<Callout kind="warn">
+Not one issue. Each problem below has its own ticket. Shipping the parser fix will not stop the others.
+</Callout>
+
+## The problems
+
+<ProblemSplit ticket={4471} {tickets} />
+
+How each report is placed:
+
+1. **Duplicates out first.** The ticket export pages overlap, so some reports come twice. One id, one report.
+2. **One-day moves.** Reports the desk itself noted as a one-day move (`desk-notes.json`) are their own
+   problem: day and month did not swap, so neither the parser nor the form hint explains them.
+3. **The rest by tenant, not by intake tag.** The tenant's locale and booking form decide the cause
+   (`causes.ts`). Every tenant on file writes the day first. Reports through a `booking-v3` form are the
+   form hint; everything else is the shared parser.
+
+## Why it looked like one bug
+
+- **Merged by subject.** [Decision 0001](/kb/decisions/0001-dedupe-by-subject) merges on the subject line
+  alone. "Wrong date" reads the same whatever caused it, so three problems landed in one ticket.
+- **Intake tags are a guess.** Intake tags a report `hint` when the reporter's browser is `en-US` and
+  `parser` otherwise. The browser is not the tenant: app and email reports from `en-US` browsers get `hint`,
+  and form reports from a `booking-v3` tenant's own locale get `parser`. Counting by tag gives the wrong
+  size for both.
+- **The desk saw the one-day moves** and noted them, but the table below files them under the parser.
+
+The desk's own table, for comparison:
+
+<CauseTable ticket={4471} />
+
+## What to change
+
+- Keep #4471 for the parser. Move the form-hint and one-day reports to their tickets.
+- Merge by cause, not by subject. Decision 0001 needs a new record; it is not edited.
+- Before a big ticket is marked known, split it by cause and count once per problem.
+
+<RenderStamp {signature} />
