@@ -1,6 +1,7 @@
 // What #4471 actually holds: one entry per problem, not per subject line.
-// causes.ts places a report by its tenant. The desk's own notes (desk-notes.json) set apart the reports
-// where the date moved by one day: no month and day swapped, so neither the parser nor the form hint.
+// Counted the desk's way (causes.ts): every report under the cause its tenant gives it. The reports the desk
+// read as a one-day move (desk-notes.json) are a problem of their own, but they stay counted where they are
+// filed, like the desk's footnote under CauseTable. So the one-day ticket overlaps the parser ticket.
 import type { Report, Tenant } from '#lib/kb/causes';
 import { causeOf, uniqueById } from '#lib/kb/causes';
 
@@ -21,12 +22,26 @@ export const PROBLEMS: Record<Problem, { title: string; why: string }> = {
   },
 };
 
-export function problemOf(r: Report, t: Tenant | undefined, oneDay: readonly string[]): Problem | 'unplaced' {
-  if (oneDay.includes(r.id)) return 'one-day';
-  return causeOf(r, t) ?? 'unplaced';
-}
+export type ProblemGroup = {
+  problem: Problem | 'unplaced';
+  ids: string[];
+  tenants: number;
+  firstSeen: string;
+  lastSeen: string;
+  // For one-day: the causes these reports stay filed and counted under.
+  filedUnder?: string[];
+};
 
-export type ProblemGroup = { problem: Problem | 'unplaced'; ids: string[]; tenants: number; firstSeen: string; lastSeen: string };
+function group(problem: ProblemGroup['problem'], rs: Report[]): ProblemGroup {
+  const days = rs.map((r) => r.receivedAt.slice(0, 10)).sort();
+  return {
+    problem,
+    ids: rs.map((r) => r.id).sort(),
+    tenants: new Set(rs.map((r) => r.tenant)).size,
+    firstSeen: days[0],
+    lastSeen: days[days.length - 1],
+  };
+}
 
 export function splitTicket(
   all: Report[],
@@ -37,20 +52,16 @@ export function splitTicket(
   const merged = uniqueById(all).filter((r) => r.mergedInto === ticket);
   const by = new Map<ProblemGroup['problem'], Report[]>();
   for (const r of merged) {
-    const p = problemOf(r, tenantOf(r), oneDay);
-    by.set(p, [...(by.get(p) ?? []), r]);
+    const c = causeOf(r, tenantOf(r)) ?? 'unplaced';
+    by.set(c, [...(by.get(c) ?? []), r]);
   }
-  const groups = [...by.entries()]
-    .map(([problem, rs]) => {
-      const days = rs.map((r) => r.receivedAt.slice(0, 10)).sort();
-      return {
-        problem,
-        ids: rs.map((r) => r.id).sort(),
-        tenants: new Set(rs.map((r) => r.tenant)).size,
-        firstSeen: days[0],
-        lastSeen: days[days.length - 1],
-      };
-    })
-    .sort((a, b) => b.ids.length - a.ids.length);
+  const groups = [...by.entries()].map(([p, rs]) => group(p, rs)).sort((a, b) => b.ids.length - a.ids.length);
+  const moved = merged.filter((r) => oneDay.includes(r.id));
+  if (moved.length) {
+    groups.push({
+      ...group('one-day', moved),
+      filedUnder: [...new Set(moved.map((r) => causeOf(r, tenantOf(r)) ?? 'unplaced'))],
+    });
+  }
   return { merged: merged.length, groups };
 }

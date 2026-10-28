@@ -14,7 +14,7 @@
 
 <p class="sum">
   <strong>{split.merged}</strong> reports merged into #{ticket} ·
-  <strong>{split.groups.length}</strong> problems · each needs its own ticket
+  <strong>{split.groups.length}</strong> problems · each needs its own ticket · counted the desk's way
 </p>
 
 <table>
@@ -27,7 +27,7 @@
         <td>
           {#if g.problem === 'unplaced'}<code>unplaced</code>{:else}<b>{PROBLEMS[g.problem].title}</b><br /><span class="why">{PROBLEMS[g.problem].why}</span>{/if}
         </td>
-        <td>{g.ids.length}</td>
+        <td>{g.ids.length}{#if g.filedUnder}<br /><span class="why">also counted under <code>{g.filedUnder.join(', ')}</code></span>{/if}</td>
         <td>{g.tenants}</td>
         <td>{g.firstSeen} → {g.lastSeen}</td>
         <td>
