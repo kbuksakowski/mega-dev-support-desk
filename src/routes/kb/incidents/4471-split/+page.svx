@@ -8,36 +8,85 @@ signature: Kamil Buksakowski
 ---
 
 <script>
+  import reports from '#lib/data/reports-4471.json';
+  import notes from '#lib/data/desk-notes.json';
+  import { groupByCause, readAs, uniqueById } from '#lib/kb/causes';
+  import { tenantOf } from '#lib/kb/locales';
   import CauseTable from '#lib/kb/CauseTable.svelte';
   import Callout from '#lib/kb/Callout.svelte';
   import RenderStamp from '#lib/kb/RenderStamp.svelte';
+
+  // Only the desk's own lib, as exported. The one-day moves the desk footnotes under a cause
+  // are taken out of that cause and counted once, as their own problem.
+  const merged = uniqueById(reports).filter((r) => r.mergedInto === 4471);
+  const groups = groupByCause(merged, tenantOf);
+  const filed = (cause) => groups.find((g) => g.cause === cause);
+  const moved = (cause) => (filed(cause) ? readAs(filed(cause), notes.oneDayMove) : 0);
+  const size = (cause) => (filed(cause) ? filed(cause).reports.length : 0);
+
+  const problems = [
+    {
+      title: 'Shared parser reads day-first dates month first',
+      ticket: 'https://github.com/kbuksakowski/mega-dev-support-desk/issues/1',
+      reports: size('parser') - moved('parser'),
+      from: 'the parser row, without its one-day moves',
+    },
+    {
+      title: 'booking-v3 form hints MM/DD/YYYY but reads the date day first',
+      ticket: 'https://github.com/kbuksakowski/mega-dev-support-desk/issues/2',
+      reports: size('hint') - moved('hint'),
+      from: 'the hint row, marked “no ticket of its own”',
+    },
+    {
+      title: 'Invite date moves by one day',
+      ticket: 'https://github.com/kbuksakowski/mega-dev-support-desk/issues/4',
+      reports: groups.reduce((n, g) => n + readAs(g, notes.oneDayMove), 0),
+      from: 'the footnote under the table',
+    },
+  ];
+  const total = problems.reduce((n, p) => n + p.reports, 0);
 </script>
 
-[#4471](/kb/incidents/4471) says one bug, one fix queued. The reports merged into it hold three problems,
-and the queued parser fix closes only one of them.
+[#4471](/kb/incidents/4471) says one bug, one fix queued. The reports merged into it hold
+{problems.length} problems, and the queued parser fix closes only one of them.
 
 <Callout kind="warn">
 Not one issue. Each problem below has its own ticket. Shipping the parser fix will not stop the others.
 </Callout>
 
-## What #4471 holds
+## The problems
+
+<p><strong>{merged.length}</strong> reports merged into #4471 · <strong>{problems.length}</strong> problems · <strong>{total}</strong> reports placed, each once</p>
+
+<table>
+  <thead><tr><th>problem</th><th>reports</th><th>from the desk's table</th><th>ticket</th></tr></thead>
+  <tbody>
+    {#each problems as p (p.title)}
+      <tr>
+        <td>{p.title}</td>
+        <td>{p.reports}</td>
+        <td>{p.from}</td>
+        <td><a href={p.ticket}>#{p.ticket.split('/').pop()}</a></td>
+      </tr>
+    {/each}
+  </tbody>
+</table>
+
+How each report is placed:
+
+1. **Duplicates out first.** The ticket export pages overlap, so some reports come twice. One id, one report.
+2. **By tenant, not by intake tag.** The tenant's locale and booking form decide the cause (`causes.ts`).
+   Every tenant on file writes the day first. Reports through a `booking-v3` form are the form hint;
+   everything else is the shared parser.
+3. **One-day moves on their own.** The reports the desk read as a one-day move (`desk-notes.json`) did not
+   swap day and month, so neither the parser nor the form hint explains them. They leave the row they are
+   filed under and are counted once, in their own ticket.
+
+## The desk's table
 
 <CauseTable ticket={4471} />
 
-## The problems
-
-1. **Shared parser reads day-first dates month first** —
-   [ticket #1](https://github.com/kbuksakowski/mega-dev-support-desk/issues/1). The `parser` row above,
-   without the one-day moves in its footnote. Every tenant on file writes the day first; the parser reads
-   month first, so day and month swap.
-2. **booking-v3 form hints MM/DD/YYYY but reads the date day first** —
-   [ticket #2](https://github.com/kbuksakowski/mega-dev-support-desk/issues/2). The `hint` row above, the
-   one marked as having no ticket of its own. People type what the hint tells them; the form reads it the
-   tenant's way. A different code path: the parser fix will not close it.
-3. **Invite date moves by one day** —
-   [ticket #3](https://github.com/kbuksakowski/mega-dev-support-desk/issues/3). The reports in the footnote
-   under the table (`desk-notes.json`). Day and month do not swap; the date lands one day off, or differs by
-   where the client is.
+The `parser` row here still holds the one-day moves from the footnote; the table above takes them out.
 
 ## Why it looked like one bug
 
@@ -45,7 +94,6 @@ Not one issue. Each problem below has its own ticket. Shipping the parser fix wi
   alone. "Wrong date" reads the same whatever caused it, so three problems landed in one ticket.
 - **Intake tags are a guess.** Intake tags a report `hint` when the reporter's browser is `en-US` and
   `parser` otherwise. The browser is not the tenant, so the "tagged as" column disagrees with the cause.
-  Count by the tenant's locale and booking form, not by tag.
 - **The desk saw the one-day moves** after #4471 was marked known and noted them, but only as a footnote,
   with no ticket of their own.
 
