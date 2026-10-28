@@ -5,58 +5,53 @@ owner: Kamil Buksakowski
 status: proposed
 reviewed: 2026-10-28
 signature: Kamil Buksakowski
-tickets:
-  parser: https://github.com/kbuksakowski/mega-dev-support-desk/issues/1
-  hint: https://github.com/kbuksakowski/mega-dev-support-desk/issues/2
-  one-day: https://github.com/kbuksakowski/mega-dev-support-desk/issues/3
 ---
 
 <script>
-  import ProblemSplit from '#lib/kb/ProblemSplit.svelte';
   import CauseTable from '#lib/kb/CauseTable.svelte';
   import Callout from '#lib/kb/Callout.svelte';
   import RenderStamp from '#lib/kb/RenderStamp.svelte';
 </script>
 
-[#4471](/kb/incidents/4471) says one bug, one fix queued. The reports merged into it say otherwise:
-they hold more than one problem, and the queued parser fix closes only one of them.
+[#4471](/kb/incidents/4471) says one bug, one fix queued. The reports merged into it hold three problems,
+and the queued parser fix closes only one of them.
 
 <Callout kind="warn">
 Not one issue. Each problem below has its own ticket. Shipping the parser fix will not stop the others.
 </Callout>
 
+## What #4471 holds
+
+<CauseTable ticket={4471} />
+
 ## The problems
 
-<ProblemSplit ticket={4471} {tickets} />
-
-How each report is placed:
-
-1. **Duplicates out first.** The ticket export pages overlap, so some reports come twice. One id, one report.
-2. **By tenant, not by intake tag.** The tenant's locale and booking form decide the cause
-   (`causes.ts`). Every tenant on file writes the day first. Reports through a `booking-v3` form are the
-   form hint; everything else is the shared parser.
-3. **One-day moves.** Reports the desk itself noted as a one-day move (`desk-notes.json`) are their own
-   problem: day and month did not swap, so neither the parser nor the form hint explains them. The desk
-   counts a report where it is filed and footnotes the reading, so they stay in the parser count too.
+1. **Shared parser reads day-first dates month first** —
+   [ticket #1](https://github.com/kbuksakowski/mega-dev-support-desk/issues/1). The `parser` row above,
+   without the one-day moves in its footnote. Every tenant on file writes the day first; the parser reads
+   month first, so day and month swap.
+2. **booking-v3 form hints MM/DD/YYYY but reads the date day first** —
+   [ticket #2](https://github.com/kbuksakowski/mega-dev-support-desk/issues/2). The `hint` row above, the
+   one marked as having no ticket of its own. People type what the hint tells them; the form reads it the
+   tenant's way. A different code path: the parser fix will not close it.
+3. **Invite date moves by one day** —
+   [ticket #3](https://github.com/kbuksakowski/mega-dev-support-desk/issues/3). The reports in the footnote
+   under the table (`desk-notes.json`). Day and month do not swap; the date lands one day off, or differs by
+   where the client is.
 
 ## Why it looked like one bug
 
 - **Merged by subject.** [Decision 0001](/kb/decisions/0001-dedupe-by-subject) merges on the subject line
   alone. "Wrong date" reads the same whatever caused it, so three problems landed in one ticket.
 - **Intake tags are a guess.** Intake tags a report `hint` when the reporter's browser is `en-US` and
-  `parser` otherwise. The browser is not the tenant: app and email reports from `en-US` browsers get `hint`,
-  and form reports from a `booking-v3` tenant's own locale get `parser`. Counting by tag gives the wrong
-  size for both.
-- **The desk saw the one-day moves** and noted them, but only as a footnote under the parser, with no
-  ticket of their own.
-
-The desk's own table, for comparison:
-
-<CauseTable ticket={4471} />
+  `parser` otherwise. The browser is not the tenant, so the "tagged as" column disagrees with the cause.
+  Count by the tenant's locale and booking form, not by tag.
+- **The desk saw the one-day moves** after #4471 was marked known and noted them, but only as a footnote,
+  with no ticket of their own.
 
 ## What to change
 
-- Keep #4471 for the parser. Move the form-hint reports to their ticket; link the one-day reports to theirs.
+- Keep #4471 for the parser. Move the form-hint and one-day reports to their tickets.
 - Merge by cause, not by subject. Decision 0001 needs a new record; it is not edited.
 - Before a big ticket is marked known, split it by cause and count once per problem.
 
